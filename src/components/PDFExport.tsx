@@ -45,41 +45,55 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef
       // Add annotated canvas image if available
       if (canvasRef?.current) {
         try {
+          console.log('Canvas found, capturing image...');
           const canvas = canvasRef.current;
-          const imgData = canvas.toDataURL('image/png', 1.0);
           
-          // Calculate image dimensions to fit in PDF
-          const maxWidth = pageWidth - 40;
-          const maxHeight = 120;
-          const aspectRatio = canvas.height / canvas.width;
-          
-          let imgWidth = Math.min(maxWidth, canvas.width / 3);
-          let imgHeight = imgWidth * aspectRatio;
-          
-          if (imgHeight > maxHeight) {
-            imgHeight = maxHeight;
-            imgWidth = imgHeight / aspectRatio;
+          // Force a redraw of the canvas to ensure it's up to date
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            // Get the image data with high quality
+            const imgData = canvas.toDataURL('image/png', 1.0);
+            console.log('Canvas image captured, data length:', imgData.length);
+            
+            // Calculate image dimensions to fit in PDF
+            const maxWidth = pageWidth - 40;
+            const maxHeight = 120;
+            const aspectRatio = canvas.height / canvas.width;
+            
+            let imgWidth = Math.min(maxWidth, canvas.width / 3);
+            let imgHeight = imgWidth * aspectRatio;
+            
+            if (imgHeight > maxHeight) {
+              imgHeight = maxHeight;
+              imgWidth = imgHeight / aspectRatio;
+            }
+            
+            // Add the image to PDF
+            pdf.addImage(imgData, 'PNG', (pageWidth - imgWidth) / 2, yPosition, imgWidth, imgHeight);
+            yPosition += imgHeight + 20;
+            console.log('Image added to PDF successfully');
           }
-          
-          pdf.addImage(imgData, 'PNG', (pageWidth - imgWidth) / 2, yPosition, imgWidth, imgHeight);
-          yPosition += imgHeight + 20;
         } catch (error) {
           console.error('Error adding canvas to PDF:', error);
           toast.error('Error adding annotated image to PDF');
           yPosition += 20;
         }
+      } else {
+        console.log('No canvas reference available');
+        yPosition += 20;
       }
       
       // Add measurements table
       addMeasurementsTable(pdf, yPosition);
       
       // Save PDF
-      pdf.save(`measurement-report-${Date.now()}.pdf`);
+      const filename = `measurement-report-${Date.now()}.pdf`;
+      pdf.save(filename);
       toast.success('PDF generated successfully!');
       
     } catch (error) {
       console.error('Error generating PDF:', error);
-      toast.error('Failed to generate PDF');
+      toast.error('Failed to generate PDF. Please try again.');
     }
   };
 
@@ -166,7 +180,7 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef
             </div>
             <Button 
               onClick={generatePDF}
-              disabled={measurements.length === 0 || !canvasRef?.current}
+              disabled={measurements.length === 0}
               className="flex items-center gap-2"
             >
               <Download className="h-4 w-4" />
