@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,6 +14,7 @@ interface MeasurementCanvasProps {
   onMeasurementAdd: (measurement: Measurement) => void;
   onMeasurementUpdate: (id: string, updates: Partial<Measurement>) => void;
   onMeasurementDelete: (id: string) => void;
+  canvasRef: React.RefObject<HTMLCanvasElement>;
 }
 
 const MeasurementCanvas: React.FC<MeasurementCanvasProps> = ({
@@ -22,9 +22,9 @@ const MeasurementCanvas: React.FC<MeasurementCanvasProps> = ({
   measurements,
   onMeasurementAdd,
   onMeasurementUpdate,
-  onMeasurementDelete
+  onMeasurementDelete,
+  canvasRef
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [isCreatingMeasurement, setIsCreatingMeasurement] = useState(false);
   const [currentPoints, setCurrentPoints] = useState<Point[]>([]);

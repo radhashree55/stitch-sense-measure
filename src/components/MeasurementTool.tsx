@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ImageUpload from './ImageUpload';
@@ -12,6 +12,7 @@ const MeasurementTool = () => {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [activeTab, setActiveTab] = useState('upload');
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const handleImageUpload = (imageUrl: string) => {
     setUploadedImage(imageUrl);
@@ -55,6 +56,7 @@ const MeasurementTool = () => {
                 onMeasurementAdd={handleMeasurementAdd}
                 onMeasurementUpdate={handleMeasurementUpdate}
                 onMeasurementDelete={handleMeasurementDelete}
+                canvasRef={canvasRef}
               />
             )}
           </TabsContent>
@@ -71,6 +73,7 @@ const MeasurementTool = () => {
             <PDFExport
               imageUrl={uploadedImage}
               measurements={measurements}
+              canvasRef={canvasRef}
             />
           </TabsContent>
         </Tabs>

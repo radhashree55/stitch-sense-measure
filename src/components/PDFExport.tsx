@@ -12,13 +12,14 @@ import { Measurement, MEASUREMENT_TYPES } from '../types/measurement';
 interface PDFExportProps {
   imageUrl: string | null;
   measurements: Measurement[];
+  canvasRef?: React.RefObject<HTMLCanvasElement>;
 }
 
-const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements }) => {
+const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef }) => {
   const previewRef = useRef<HTMLDivElement>(null);
 
   const generatePDF = async () => {
-    if (!previewRef.current || measurements.length === 0) {
+    if (!canvasRef?.current || measurements.length === 0) {
       toast.error('No measurements to export');
       return;
     }
@@ -41,57 +42,37 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements }) => {
       
       let yPosition = 45;
       
-      // Add image if available
-      if (imageUrl) {
-        try {
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = async () => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            // Calculate image dimensions to fit in PDF
-            const maxWidth = pageWidth - 40;
-            const maxHeight = 100;
-            const aspectRatio = img.height / img.width;
-            
-            let imgWidth = Math.min(maxWidth, img.width);
-            let imgHeight = imgWidth * aspectRatio;
-            
-            if (imgHeight > maxHeight) {
-              imgHeight = maxHeight;
-              imgWidth = imgHeight / aspectRatio;
-            }
-            
-            canvas.width = imgWidth;
-            canvas.height = imgHeight;
-            ctx?.drawImage(img, 0, 0, imgWidth, imgHeight);
-            
-            const imgData = canvas.toDataURL('image/jpeg', 0.8);
-            pdf.addImage(imgData, 'JPEG', (pageWidth - imgWidth) / 2, yPosition, imgWidth, imgHeight);
-            
-            yPosition += imgHeight + 15;
-            
-            // Add measurements table
-            addMeasurementsTable(pdf, yPosition);
-            
-            // Save PDF
-            pdf.save(`measurement-report-${Date.now()}.pdf`);
-            toast.success('PDF generated successfully!');
-          };
-          img.src = imageUrl;
-        } catch (error) {
-          console.error('Error adding image to PDF:', error);
-          // Continue without image
-          addMeasurementsTable(pdf, yPosition);
-          pdf.save(`measurement-report-${Date.now()}.pdf`);
-          toast.success('PDF generated successfully!');
+      // Add annotated canvas image
+      try {
+        const canvas = canvasRef.current;
+        const imgData = canvas.toDataURL('image/jpeg', 0.8);
+        
+        // Calculate image dimensions to fit in PDF
+        const maxWidth = pageWidth - 40;
+        const maxHeight = 100;
+        const aspectRatio = canvas.height / canvas.width;
+        
+        let imgWidth = Math.min(maxWidth, canvas.width / 4); // Scale down for PDF
+        let imgHeight = imgWidth * aspectRatio;
+        
+        if (imgHeight > maxHeight) {
+          imgHeight = maxHeight;
+          imgWidth = imgHeight / aspectRatio;
         }
-      } else {
-        addMeasurementsTable(pdf, yPosition);
-        pdf.save(`measurement-report-${Date.now()}.pdf`);
-        toast.success('PDF generated successfully!');
+        
+        pdf.addImage(imgData, 'JPEG', (pageWidth - imgWidth) / 2, yPosition, imgWidth, imgHeight);
+        yPosition += imgHeight + 15;
+      } catch (error) {
+        console.error('Error adding canvas to PDF:', error);
+        toast.error('Error adding annotated image to PDF');
       }
+      
+      // Add measurements table
+      addMeasurementsTable(pdf, yPosition);
+      
+      // Save PDF
+      pdf.save(`measurement-report-${Date.now()}.pdf`);
+      toast.success('PDF generated successfully!');
       
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -175,7 +156,7 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements }) => {
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
             <div>
               <p className="text-muted-foreground">
-                Generate a comprehensive PDF report with your measurements and annotated image.
+                Generate a comprehensive PDF report with your annotated measurements and measurement table.
               </p>
               <div className="mt-2 text-sm text-muted-foreground">
                 <span>📊 {totalMeasurements} measurements</span>
@@ -184,7 +165,7 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements }) => {
             </div>
             <Button 
               onClick={generatePDF}
-              disabled={measurements.length === 0}
+              disabled={measurements.length === 0 || !canvasRef?.current}
               className="flex items-center gap-2"
             >
               <Download className="h-4 w-4" />
@@ -207,19 +188,20 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements }) => {
               <p className="text-sm text-gray-600 mt-2">Generated on: {currentDate}</p>
             </div>
 
-            {/* Image Section */}
-            {imageUrl && (
+            {/* Annotated Image Section */}
+            {canvasRef?.current && (
               <div className="text-center">
                 <h2 className="text-lg font-semibold mb-4 flex items-center justify-center gap-2">
                   <ImageIcon className="h-5 w-5" />
-                  Measured Apparel
+                  Annotated Measurements
                 </h2>
                 <div className="border rounded-lg p-4 inline-block">
-                  <img
-                    src={imageUrl}
-                    alt="Measured apparel"
-                    className="max-w-md max-h-64 object-contain"
-                  />
+                  <p className="text-sm text-gray-600 mb-2">
+                    Annotated image with measurement lines will appear in the PDF
+                  </p>
+                  <div className="w-64 h-32 bg-gray-100 border-2 border-dashed rounded flex items-center justify-center">
+                    <span className="text-gray-500">Canvas Preview</span>
+                  </div>
                 </div>
               </div>
             )}
