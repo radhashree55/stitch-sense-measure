@@ -19,7 +19,7 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef
   const previewRef = useRef<HTMLDivElement>(null);
 
   const generatePDF = async () => {
-    if (!canvasRef?.current || measurements.length === 0) {
+    if (measurements.length === 0) {
       toast.error('No measurements to export');
       return;
     }
@@ -42,29 +42,32 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef
       
       let yPosition = 45;
       
-      // Add annotated canvas image
-      try {
-        const canvas = canvasRef.current;
-        const imgData = canvas.toDataURL('image/jpeg', 0.8);
-        
-        // Calculate image dimensions to fit in PDF
-        const maxWidth = pageWidth - 40;
-        const maxHeight = 100;
-        const aspectRatio = canvas.height / canvas.width;
-        
-        let imgWidth = Math.min(maxWidth, canvas.width / 4); // Scale down for PDF
-        let imgHeight = imgWidth * aspectRatio;
-        
-        if (imgHeight > maxHeight) {
-          imgHeight = maxHeight;
-          imgWidth = imgHeight / aspectRatio;
+      // Add annotated canvas image if available
+      if (canvasRef?.current) {
+        try {
+          const canvas = canvasRef.current;
+          const imgData = canvas.toDataURL('image/png', 1.0);
+          
+          // Calculate image dimensions to fit in PDF
+          const maxWidth = pageWidth - 40;
+          const maxHeight = 120;
+          const aspectRatio = canvas.height / canvas.width;
+          
+          let imgWidth = Math.min(maxWidth, canvas.width / 3);
+          let imgHeight = imgWidth * aspectRatio;
+          
+          if (imgHeight > maxHeight) {
+            imgHeight = maxHeight;
+            imgWidth = imgHeight / aspectRatio;
+          }
+          
+          pdf.addImage(imgData, 'PNG', (pageWidth - imgWidth) / 2, yPosition, imgWidth, imgHeight);
+          yPosition += imgHeight + 20;
+        } catch (error) {
+          console.error('Error adding canvas to PDF:', error);
+          toast.error('Error adding annotated image to PDF');
+          yPosition += 20;
         }
-        
-        pdf.addImage(imgData, 'JPEG', (pageWidth - imgWidth) / 2, yPosition, imgWidth, imgHeight);
-        yPosition += imgHeight + 15;
-      } catch (error) {
-        console.error('Error adding canvas to PDF:', error);
-        toast.error('Error adding annotated image to PDF');
       }
       
       // Add measurements table
@@ -92,18 +95,16 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef
     // Table styling
     pdf.setFontSize(10);
     const rowHeight = 8;
-    const colWidths = [40, 60, 30, 20];
-    const colStartX = [20, 60, 120, 150];
     
     // Draw table header
     pdf.setFillColor(240, 240, 240);
     pdf.rect(20, startY, pageWidth - 40, rowHeight, 'F');
     
     pdf.setTextColor(0, 0, 0);
-    pdf.text('Type', colStartX[0] + 2, startY + 5);
-    pdf.text('Label', colStartX[1] + 2, startY + 5);
-    pdf.text('Value (cm)', colStartX[2] + 2, startY + 5);
-    pdf.text('Unit', colStartX[3] + 2, startY + 5);
+    pdf.text('Type', 25, startY + 5);
+    pdf.text('Label', 70, startY + 5);
+    pdf.text('Value (cm)', 130, startY + 5);
+    pdf.text('Unit', 160, startY + 5);
     
     startY += rowHeight;
     
@@ -117,10 +118,10 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef
         pdf.rect(20, startY, pageWidth - 40, rowHeight, 'F');
       }
       
-      pdf.text(typeConfig?.label || measurement.type, colStartX[0] + 2, startY + 5);
-      pdf.text(measurement.label, colStartX[1] + 2, startY + 5);
-      pdf.text(measurement.value.toString(), colStartX[2] + 2, startY + 5);
-      pdf.text(measurement.unit, colStartX[3] + 2, startY + 5);
+      pdf.text(typeConfig?.label || measurement.type, 25, startY + 5);
+      pdf.text(measurement.label || '', 70, startY + 5);
+      pdf.text(measurement.value.toString(), 130, startY + 5);
+      pdf.text(measurement.unit, 160, startY + 5);
       
       startY += rowHeight;
     });
