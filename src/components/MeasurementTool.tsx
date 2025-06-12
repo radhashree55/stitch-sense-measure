@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ImageUpload from './ImageUpload';
@@ -12,6 +12,7 @@ const MeasurementTool = () => {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [activeTab, setActiveTab] = useState('upload');
+  const [annotatedImageData, setAnnotatedImageData] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const handleImageUpload = (imageUrl: string) => {
@@ -33,10 +34,39 @@ const MeasurementTool = () => {
     setMeasurements(prev => prev.filter(m => m.id !== id));
   };
 
+  // Update annotated image when measurements change or when switching to export tab
+  useEffect(() => {
+    if (canvasRef.current && measurements.length > 0) {
+      // Small delay to ensure canvas is rendered
+      setTimeout(() => {
+        if (canvasRef.current) {
+          const imageData = canvasRef.current.toDataURL('image/png', 1.0);
+          setAnnotatedImageData(imageData);
+          console.log('Annotated image data updated:', imageData.length);
+        }
+      }, 100);
+    }
+  }, [measurements, activeTab]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    
+    // When switching to export tab, capture the current canvas state
+    if (value === 'export' && canvasRef.current && measurements.length > 0) {
+      setTimeout(() => {
+        if (canvasRef.current) {
+          const imageData = canvasRef.current.toDataURL('image/png', 1.0);
+          setAnnotatedImageData(imageData);
+          console.log('Canvas captured for export:', imageData.length);
+        }
+      }, 100);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto">
       <Card className="p-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="upload">Upload Image</TabsTrigger>
             <TabsTrigger value="measure" disabled={!uploadedImage}>Add Measurements</TabsTrigger>
@@ -74,6 +104,7 @@ const MeasurementTool = () => {
               imageUrl={uploadedImage}
               measurements={measurements}
               canvasRef={canvasRef}
+              annotatedImageData={annotatedImageData}
             />
           </TabsContent>
         </Tabs>

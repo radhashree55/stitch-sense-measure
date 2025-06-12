@@ -1,4 +1,3 @@
-
 import React, { useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,16 +5,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Download, FileText, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { Measurement, MEASUREMENT_TYPES } from '../types/measurement';
 
 interface PDFExportProps {
   imageUrl: string | null;
   measurements: Measurement[];
   canvasRef?: React.RefObject<HTMLCanvasElement>;
+  annotatedImageData?: string | null;
 }
 
-const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef }) => {
+const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef, annotatedImageData }) => {
   const previewRef = useRef<HTMLDivElement>(null);
 
   const generatePDF = async () => {
@@ -42,16 +41,59 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef
       
       let yPosition = 45;
       
-      // Add annotated canvas image if available
-      if (canvasRef?.current) {
+      // Add annotated image - first try the passed annotatedImageData, then canvas
+      let imageAdded = false;
+      
+      if (annotatedImageData) {
         try {
-          console.log('Canvas found, capturing image...');
-          const canvas = canvasRef.current;
+          console.log('Using annotated image data for PDF');
           
-          // Force a redraw of the canvas to ensure it's up to date
+          // Calculate image dimensions to fit in PDF
+          const maxWidth = pageWidth - 40;
+          const maxHeight = 120;
+          
+          // Create a temporary image to get dimensions
+          const tempImg = new Image();
+          tempImg.onload = () => {
+            const aspectRatio = tempImg.height / tempImg.width;
+            
+            let imgWidth = Math.min(maxWidth, tempImg.width / 3);
+            let imgHeight = imgWidth * aspectRatio;
+            
+            if (imgHeight > maxHeight) {
+              imgHeight = maxHeight;
+              imgWidth = imgHeight / aspectRatio;
+            }
+            
+            // Add the annotated image to PDF
+            pdf.addImage(annotatedImageData, 'PNG', (pageWidth - imgWidth) / 2, yPosition, imgWidth, imgHeight);
+            yPosition += imgHeight + 20;
+            console.log('Annotated image added to PDF successfully');
+            
+            // Continue with the rest of the PDF generation
+            addMeasurementsTable(pdf, yPosition);
+            
+            // Save PDF
+            const filename = `measurement-report-${Date.now()}.pdf`;
+            pdf.save(filename);
+            toast.success('PDF generated successfully!');
+          };
+          tempImg.src = annotatedImageData;
+          imageAdded = true;
+        } catch (error) {
+          console.error('Error adding annotated image to PDF:', error);
+          imageAdded = false;
+        }
+      }
+      
+      // Fallback to canvas if annotatedImageData failed
+      if (!imageAdded && canvasRef?.current) {
+        try {
+          console.log('Fallback: Using canvas for PDF');
+          const canvas = canvasRef.current;
           const ctx = canvas.getContext('2d');
+          
           if (ctx) {
-            // Get the image data with high quality
             const imgData = canvas.toDataURL('image/png', 1.0);
             console.log('Canvas image captured, data length:', imgData.length);
             
@@ -71,25 +113,29 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef
             // Add the image to PDF
             pdf.addImage(imgData, 'PNG', (pageWidth - imgWidth) / 2, yPosition, imgWidth, imgHeight);
             yPosition += imgHeight + 20;
-            console.log('Image added to PDF successfully');
+            console.log('Canvas image added to PDF successfully');
+            imageAdded = true;
           }
         } catch (error) {
           console.error('Error adding canvas to PDF:', error);
-          toast.error('Error adding annotated image to PDF');
-          yPosition += 20;
         }
-      } else {
-        console.log('No canvas reference available');
+      }
+      
+      if (!imageAdded) {
+        console.log('No annotated image available for PDF');
         yPosition += 20;
       }
       
-      // Add measurements table
-      addMeasurementsTable(pdf, yPosition);
-      
-      // Save PDF
-      const filename = `measurement-report-${Date.now()}.pdf`;
-      pdf.save(filename);
-      toast.success('PDF generated successfully!');
+      // If we used annotatedImageData, we need to handle the async image loading differently
+      if (!annotatedImageData) {
+        // Add measurements table
+        addMeasurementsTable(pdf, yPosition);
+        
+        // Save PDF
+        const filename = `measurement-report-${Date.now()}.pdf`;
+        pdf.save(filename);
+        toast.success('PDF generated successfully!');
+      }
       
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -176,6 +222,7 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef
               <div className="mt-2 text-sm text-muted-foreground">
                 <span>📊 {totalMeasurements} measurements</span>
                 <span className="ml-4">📏 {totalLength.toFixed(1)} cm total</span>
+                {annotatedImageData && <span className="ml-4">🖼️ Annotated image ready</span>}
               </div>
             </div>
             <Button 
@@ -204,19 +251,32 @@ const PDFExport: React.FC<PDFExportProps> = ({ imageUrl, measurements, canvasRef
             </div>
 
             {/* Annotated Image Section */}
-            {canvasRef?.current && (
+            {(annotatedImageData || canvasRef?.current) && (
               <div className="text-center">
                 <h2 className="text-lg font-semibold mb-4 flex items-center justify-center gap-2">
                   <ImageIcon className="h-5 w-5" />
                   Annotated Measurements
                 </h2>
                 <div className="border rounded-lg p-4 inline-block">
-                  <p className="text-sm text-gray-600 mb-2">
-                    Annotated image with measurement lines will appear in the PDF
-                  </p>
-                  <div className="w-64 h-32 bg-gray-100 border-2 border-dashed rounded flex items-center justify-center">
-                    <span className="text-gray-500">Canvas Preview</span>
-                  </div>
+                  {annotatedImageData ? (
+                    <div>
+                      <p className="text-sm text-gray-600 mb-2">Preview of annotated image</p>
+                      <img 
+                        src={annotatedImageData} 
+                        alt="Annotated measurements" 
+                        className="max-w-64 max-h-32 object-contain border rounded"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        Annotated image with measurement lines will appear in the PDF
+                      </p>
+                      <div className="w-64 h-32 bg-gray-100 border-2 border-dashed rounded flex items-center justify-center">
+                        <span className="text-gray-500">Canvas Preview</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
